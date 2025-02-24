@@ -1,0 +1,69 @@
+service: retorimac
+
+plugins:
+  - serverless-scriptable-plugin
+  - serverless-offline
+  - serverless-plugin-typescript
+
+custom:
+  scriptable:
+    hooks:
+      before:deploy:deploy: "npm run build"
+      before:offline:start: "npm run build"
+
+provider:
+  name: aws
+  region: us-east-1
+  runtime: nodejs20.x
+  stage: ${opt:stage, 'dev'}
+  environment:
+    TABLA_FUSIONADOS: ${self:service}-${opt:stage, self:provider.stage}
+    STAGE: ${self:provider.stage}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan  
+        - dynamodb:GetItem
+        - dynamodb:UpdateItem
+        - dynamodb:PutItem
+      Resource: 
+        Fn::Join:
+          - ''
+          - - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/"
+            - ${self:provider.environment.TABLA_FUSIONADOS}
+
+functions:
+  main:
+    handler: src/main.handler
+    timeout: 20
+    events:
+      - http:
+          method: GET
+          path: /{action}/{id}
+          integration: lambda-proxy
+      - http:
+          method: POST
+          path: /{action}
+          integration: lambda-proxy
+          request:
+            parameters:
+              headers:
+                Content-Type: true
+
+resources:
+  Resources:
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        TableName: ${self:provider.environment.TABLA_FUSIONADOS}

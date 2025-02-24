@@ -1,21 +1,21 @@
-import { Controller } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param } from '@nestjs/common';
 import { AppService } from './app.service';
 
 @Controller()
 export class AppController {
-  constructor(private readonly appService: AppService) {}
-
-  public async fusionados(payload: any): Promise<any> {
-    const id = payload.path.id;
-    return await this.appService.fusionados(id);
+  constructor(private readonly appService: AppService) { }
+  @Get('fusionados/:id')
+  async fusionados(@Param('id') id: string) {
+    return await this.appService.fusionados(parseInt(id));
   }
 
-  public async almacenar(request: any): Promise<any> {
-    console.log('AC - request:', request);
-    return await this.appService.almacenar();
+  @Post('almacenar')
+  async almacenar(@Body() data: any) {
+    return await this.appService.almacenar(data);
   }
-  
-  public async historial(): Promise<any> {
+
+  @Get('historial')
+  async historial() {
     return await this.appService.historial();
   }
 }

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { SWAPIProvider } from './providers/swapi/swapi.provider';
+import { ApisProvider } from './providers/swapi/swapi.provider';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocument } from '@aws-sdk/lib-dynamodb';
 import { v4 as uuidv4 } from 'uuid';
@@ -8,31 +8,16 @@ import { v4 as uuidv4 } from 'uuid';
 export class AppService {
   ddbDocClient: DynamoDBDocument;
 
-  constructor(private swapiProvider: SWAPIProvider) {
+  constructor(private readonly apisProvider: ApisProvider) {
     const dynamoDBClient = new DynamoDBClient();
     this.ddbDocClient = DynamoDBDocument.from(dynamoDBClient);
   }
 
-  async findAll() {
-    const planets = await this.swapiProvider.getAllPlanets();
-    return planets;
-  }
-
-  async findPlanetById(id: number) {
-    const planet = await this.swapiProvider.getPlanetsById(id);
-    return planet;
-  }
-
-  async findPokeById(id: number) {
-    const poke = await this.swapiProvider.getPokeById(id);
-    return poke;
-  }
-
-  async create(fusionados: any) {
+  async create(data: any) {
     await this.ddbDocClient.put({
       TableName: process.env.TABLA_FUSIONADOS,
       Item: {
-        ...fusionados,
+        ...data,
         id: uuidv4(),
         created: new Date().toISOString(),
         edited: new Date().toISOString(),
@@ -40,27 +25,36 @@ export class AppService {
     });
   }
 
+  async obtieneTotalConsultas() {
+    const results = await this.ddbDocClient.scan({
+      TableName: process.env.TABLA_FUSIONADOS,
+    });
+    return results.Items;
+  }
+
   public async fusionados(id: number): Promise<any> {
     console.log('Ac - id: ', id);
-    const planet = await this.findPlanetById(id);
-    const poke = await this.findPokeById(id)
+    const [planet, poke] = await Promise.all([
+      this.apisProvider.getPlanetsById(id),
+      this.apisProvider.getPokeById(id),
+    ]);
     const fusionados = {
       planet,
       poke
     }
-    //this.create(fusionados);
-
-    console.log('Ac - fusionados: ', fusionados);
-    return fusionados;
+    await this.create(fusionados);
+    return { data: fusionados, message: 'Elementos fusionados correctamente' };
   }
 
-  public async almacenar(): Promise<string> {
+  public async almacenar(payload: object): Promise<any> {
     console.log('Ac - Hello almacenar!');
-    return 'Hello 2!';
+    await this.create(payload);
+    return { data: payload, message: 'Elementos almacenados correctamente' };
   }
 
-  public async historial(): Promise<string> {
+  public async historial(): Promise<any> {
     console.log('Ac - Hello historial!');
-    return 'Hello 3!';
+    const data = await this.obtieneTotalConsultas();
+    return { data, message: 'Historial obtenido correctamente' };
   }
 }

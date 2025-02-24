@@ -1,15 +1,12 @@
-import serverlessExpress from '@codegenie/serverless-express';
 import { INestApplication } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { APIGatewayProxyEvent, Callback, Context, Handler } from 'aws-lambda';
+import { APIGatewayProxyEvent, Context, Handler } from 'aws-lambda';
 import { AppModule } from './app.module';
 import { AppController } from './app.controller';
 
-let server: Handler;
-
 function setupSwagger(app: INestApplication) {
-  const stage = process.env.STAGE || 'dev';
+  const stage = process.env.STAGE ?? 'dev';
   const apiPath = process.env.IS_OFFLINE ? '' : `/${stage}`;
 
   const options = new DocumentBuilder()
@@ -23,50 +20,53 @@ function setupSwagger(app: INestApplication) {
   SwaggerModule.setup('swagger', app, document);
 }
 
-async function bootstrap(event: any): Promise<Handler> {
+async function bootstrap(event: APIGatewayProxyEvent): Promise<any> {
+  console.log("🚀 ~ bootstrap ~ event:", JSON.stringify(event));
+
   const app = await NestFactory.create(AppModule);
   setupSwagger(app);
   await app.init();
 
-  // Extraer acción del evento
   const method = event.httpMethod;
-  const body = JSON.parse(event.body);
-  console.log('AC - method:', method);
-  //const action = event.pathParameters?.action;
-  const path = event.pathParameters;
-  console.log('AC - path:', path);
-  console.log('AC - body:', body);
-  const payload = {
-    body: body?.payload,
-    path
-  }
-  const action = path?.action;
-  if (action) {
-    console.log(`AC - Ejecutando acción: ${action}`);
+  const path = event.path;
+  const pathParams = event.pathParameters || {};
+  const body = event.body ? JSON.parse(event.body) : {};
+
+  let response;
+
+  try {
     const appController = app.select(AppModule).get(AppController, { strict: false });
 
-    // Verifica si la acción existe en el controlador y la ejecuta
-    if (typeof appController[action] === 'function') {
-      return await appController[action](payload);
+    // Redirigir a la función correcta dentro de AppController
+    if (method === 'GET' && path.startsWith('/fusionados')) {
+      response = await appController.fusionados(pathParams.id);
+    } else if (method === 'POST' && path.startsWith('/almacenar')) {
+      response = await appController.almacenar(body);
+    } else if (method === 'GET' && path.startsWith('/historial')) {
+      response = await appController.historial();
     } else {
-      console.error(`AC - Acción '${action}' no encontrada en AppController`);
-      throw new Error(`Acción '${action}' no encontrada`);
+      return {
+        statusCode: 404,
+        body: JSON.stringify({ message: "Ruta no encontrada" })
+      };
     }
-  }
 
-  // Si no hay una acción específica, usar serverlessExpress
-  const expressApp = app.getHttpAdapter().getInstance();
-  return serverlessExpress({ app: expressApp });
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(response)
+    };
+
+  } catch (error) {
+    console.error("🚨 Error en la ejecución:", error);
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ message: "Error interno del servidor", error: error.message })
+    };
+  }
 }
 
-export const handler: Handler = async (
-  event: APIGatewayProxyEvent,
-  context: Context,
-  callback: Callback
-) => {
-  console.log('AC - event:', event);
-  if (!server) {
-    server = await bootstrap(event);
-  }
-  return server(event, context, callback);
+export const handler: Handler = async (event: APIGatewayProxyEvent, context: Context) => {
+  console.log('🚀 ~ handler ~ event:', event);
+  return await bootstrap(event);
 };

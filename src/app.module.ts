@@ -1,11 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { StarshipModule } from './modules/retorimac/retorimac.module';
+import { ApisProvider } from './providers/swapi/swapi.provider';
 
 @Module({
-  imports: [StarshipModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, ApisProvider],
 })
 export class AppModule {}

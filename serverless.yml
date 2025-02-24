@@ -17,7 +17,7 @@ provider:
   runtime: nodejs20.x
   stage: ${opt:stage, 'dev'}
   environment:
-    TABLA_FUSIONADOS: ${self:service}-${opt:stage, self:provider.stage}
+    TABLA_FUSIONADOS: arn:aws:dynamodb:us-east-1:250348620641:table/TABLA_FUSIONADOS
     STAGE: ${self:provider.stage}
   iamRoleStatements:
     - Effect: Allow
@@ -40,16 +40,16 @@ functions:
     events:
       - http:
           method: GET
-          path: /{action}/{id}
+          path: /fusionados/{id}
           integration: lambda-proxy
       - http:
           method: POST
-          path: /{action}
+          path: /almacenar
           integration: lambda-proxy
-          request:
-            parameters:
-              headers:
-                Content-Type: true
+      - http:
+          method: GET
+          path: /historial
+          integration: lambda-proxy
 
 resources:
   Resources:
